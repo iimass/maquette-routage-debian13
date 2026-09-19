@@ -61,6 +61,8 @@ Mais aussi en faisant `ip route`, nous voyons directement les routes reliées à
 
 ![Sortie de ip route](07-ip-route-machine-b.png)
 
+On peut voir que notre première carte réseau ens33, connectée en R1, et notre deuxième carte réseau ens36, connectée en R2, sont toutes les deux en `proto kernel scope link` : le noyau les a créées tout seul à partir des adresses en /24, et le `scope link` signifie que les machines de ces réseaux sont directement joignables, donc la machine A par ens33 et la machine C par ens36. Donc à partir de B on peut parler à ces deux machines.
+
 ### Pour la machine C :
 
 Pour la machine C on va faire pareil que pour la machine A, juste maintenant nous sommes sur R2 et la machine B est aussi sur R2 et son RPD sera donc la machine B. Dans l'interface on met donc `auto ens33` comme d'habitude et ensuite `iface ens33 inet static`, ça reste toujours la même interface ens33 qui est notre carte réseau.
