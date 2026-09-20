@@ -80,3 +80,68 @@ Et en faisant `ip route` ça nous montre les routes que notre machine a vers les
 ![Sortie de ip route](10-ip-route-machine-c.png)
 
 Donc pour conclure on voit bien que les configurations de notre interface ens33 sont bonnes, que l'adresse ip est bien 192.168.20.3/24 et que son routeur par défaut est bien 192.168.20.2 qui correspond à la machine B.
+
+## Question : comment savoir quelle carte réseau de B est en NAT et laquelle est en Host-Only ?
+
+> Comment pouvez-vous savoir quelle carte réseau Linux de B est la carte en mode HostOnly et quelle carte réseau Linux de B est en mode NAT ? Ainsi, si les 2 cartes vues par Linux sont appelées ens33 et ens37 (le nom dépend de votre version de VMware), comment savoir si c'est ens33 qui est en NAT ou si c'est ens37 ?
+
+Ma méthode pour vérifier quelle carte est en mode NAT et l'autre en Host Only :
+
+Alors tout d'abord il faut comprendre le raisonnement de ce qu'est une carte en mode NAT et Host Only.
+
+- **NAT** : la machine virtuelle passe par la machine hôte pour accéder à Internet.
+- **Host-Only** : le réseau est FERMÉ, les machines ne peuvent donc communiquer qu'entre elles et avec la machine hôte, sans aucune sortie vers Internet.
+
+Donc on va vérifier quelle carte réseau aura un accès à Internet et l'autre non. Pour cela j'ai changé la configuration de leur interface, je les ai mises en DHCP afin que chacune reçoive automatiquement une adresse du réseau sur lequel elle est déjà branchée.
+
+![Les 2 cartes de B en DHCP](11-interfaces-dhcp-machine-b.png)
+
+Comme on peut le voir par ici j'ai directement changé l'interface de nos 2 cartes réseau et je les ai bien configurées en DHCP, et avec cela on saura laquelle est en NAT et l'autre en Host Only.
+
+Maintenant qu'on a bien changé la configuration et que nos 2 cartes réseau sont bien en DHCP, on regarde avec `ip route` le chemin de ces cartes réseau et avec cela on verra laquelle est connectée directement à internet.
+
+![Sortie de ip route avec le DHCP](12-ip-route-dhcp-machine-b.png)
+
+Comme on peut le voir juste ici notre carte réseau ens33 a un RPD vers le chemin du réseau NAT, tandis que ens36 n'en a pas. Donc cela nous prouve bien que ens33 est bien en NAT et que ens36 est en Host Only.
+
+Pourquoi ? Car le serveur DHCP du réseau Host Only ne donne aucune passerelle vu qu'il n'y a aucun routeur sur ce réseau : comme il est fermé, il n'a nulle part où aller. Alors que le serveur DHCP du réseau NAT donne bien l'adresse de la passerelle NAT, car c'est par elle qu'on sort vers Internet.
+
+## Pouvoir faire en sorte que A puisse faire un ping vers C :
+
+Notre objectif ici, maintenant qu'on a configuré nos cartes réseau de nos 3 machines, est de pouvoir faire en sorte qu'elles puissent s'envoyer des paquets entre elles. Actuellement, sans avoir fait aucun changement, si on souhaite depuis la machine A faire un ping à la machine C, ça ne marchera pas : chacun de nos paquets ne sera jamais reçu par la machine C.
+
+Cela est lié à un problème : en faisant `sysctl net.ipv4.ip_forward` on voit que son statut est à 0.
+
+![ip_forward à 0](13-ip-forward-0.png)
+
+Cela veut dire que ip_forward ne nous donne pas cette autorisation, et donc 0 car c'est un booléen, donc 0 pour false, et nous on veut avoir cette autorisation.
+
+Sans cette autorisation, dans notre cas A va envoyer un paquet à son RPD qui est en R1 et qui est la machine B, donc ce paquet sera reçu sur ens33. Mais le problème est que ce paquet a pour destination une machine qui est sur un autre réseau (R2), et c'est là qu'entre en jeu cette autorisation : elle nous dit si on a le droit d'envoyer ce paquet vers son autre carte réseau (ens36) car elle est sur R2.
+
+Du coup, dans le cas où on a notre autorisation, la machine B va regarder sa table de routage et va donc décider d'envoyer ce paquet à ens36 qui est en R2 comme la destination de ce paquet, et donc ens36 va pouvoir envoyer ce paquet à sa destination sans souci.
+
+Alors pour pouvoir mettre cette autorisation à 1, et pour qu'elle marche même en redémarrant la machine, j'ai créé un fichier `.conf` que j'ai appelé `99-routage.conf` dans le dossier `/etc/sysctl.d`, c'est là-dedans que va s'appliquer cette autorisation.
+
+![Création du fichier 99-routage.conf](14-creation-99-routage-conf.png)
+
+Maintenant qu'il a été créé, je peux mettre cette autorisation dans notre `99-routage.conf` : je vais tout simplement mettre dedans `net.ipv4.ip_forward=1` afin de bien activer notre autorisation en la mettant à 1.
+
+![Contenu du fichier 99-routage.conf](15-contenu-99-routage-conf.png)
+
+C'est bon, on a cette autorisation. Maintenant on peut en revérifier le statut en faisant la même commande `sysctl net.ipv4.ip_forward` et on verra bien qu'il sera à 1.
+
+![ip_forward à 1](16-ip-forward-1.png)
+
+Maintenant qu'on a cette autorisation, on pourra envoyer nos paquets de la machine A à la machine C tout en passant par la machine B.
+
+On peut faire un ping de A vers B/R1 et que ça soit OK :
+
+![Ping de A vers B/R1](17-ping-a-vers-b-r1.png)
+
+On peut faire un ping de A vers B/R2 et que ça soit OK :
+
+![Ping de A vers B/R2](18-ping-a-vers-b-r2.png)
+
+On peut faire un ping de A vers C/R2 et que ça soit OK :
+
+![Ping de A vers C/R2](19-ping-a-vers-c-r2.png)
