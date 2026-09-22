@@ -145,3 +145,89 @@ On peut faire un ping de A vers B/R2 et que ça soit OK :
 On peut faire un ping de A vers C/R2 et que ça soit OK :
 
 ![Ping de A vers C/R2](19-ping-a-vers-c-r2.png)
+
+On vérifie que le routage fonctionne. Le paquet traverse vraiment B : il entre par ens33 et ressort par ens36, ce test valide ip_forward sur B et le RPD de C.
+
+Si le test 3 échoue alors que les 2 premières sont OK, alors on saura que le problème vient soit d’ip_forward sur B, soit du RPD de C.
+
+## Question : est-il intéressant de vérifier aussi que depuis C, un ping vers 192.168.10.1 (A) est OK ?
+
+Non, il n’est pas intéressant de le vérifier.
+
+Car si en partant de la machine A on ping la machine C le paquet va partir de la machine A, va passer par son RPD donc par B/R1. Ensuite la machine B va regarder sa table de routage car le paquet est destiné à une machine sur R2 il va envoyer le paquet à son ens36 qui va l’envoyer à la machine C/R2. Et si ce paquet est bien reçu par C, une réponse que C fabrique sera envoyée dans le sens inverse par le même chemin vers la machine A.
+
+## Trajet d’un paquet “ping” de A à C : IP, MAC et TTL
+
+On va s’intéresser au trajet d’un ping de A vers C. Comme dit avant, l’envoi d’un paquet “ICMP echo request“ se fait par la machine A qui est la machine qui envoie ce paquet, et en retour la machine C qui a reçu ce paquet envoie un paquet “ICMP Echo Réponse“, la commande ping 192.168.20.3 en étant dans la machine A affichera le temps d’aller-retour :
+
+![Ping de A vers C](20-ping-a-vers-c.png)
+
+Nous allons donc étudier le trajet d’un paquet de A à C :
+
+### 1) Décisions de routage déterminant ce trajet à chaque étape
+
+### Décision sur A :
+
+![Table de routage de A](21-ip-route-machine-a.png)
+
+A veut joindre 192.168.20.3 (la machine C) et pour le faire elle regarde sa table de routage :
+
+Elle va comparer la destination de ce paquet à ce qu’elle connaît : la destination de ce paquet n’est pas dans l’adresse réseau de notre machine, donc pas dans 192.168.10.0/24. Ce qui signifie qu’elles ne sont pas voisines directes, il ne restera donc que le RPD. Sa décision sera d’envoyer le paquet à la machine B en R1 via ens33 donc par son RPD.
+
+### Décision arrivée sur B :
+
+B va donc recevoir le paquet sur ens33, elle va regarder d’abord l’adresse de destination de ce paquet et verra que cette adresse ne correspond pas à la sienne et que cette adresse ne fait pas partie du réseau sur lequel elle est actuellement (R1), comme ip_forward est à 1 elle peut donc consulter sa table :
+
+![Table de routage de B](22-ip-route-machine-b.png)
+
+Comme on peut le voir, l’ip de la machine C (192.168.20.3) fait partie de l’adresse réseau de R2 accessible directement par ens36. Elle va donc faire sortir le paquet par ens36 directement vers C.
+
+### Arrivée sur C :
+
+C reçoit alors ce paquet, il voit qu’il a pour destination sa machine donc pas de décision de routage, puis il va fabriquer sa réponse, le “ICMP Echo Réponse“, qu’il va envoyer à la machine A, celle qui avait initialement envoyé le paquet, et pour envoyer cette réponse il va regarder sa table et va voir que la destination de cette réponse n’est pas dans son réseau actuel, alors, ce qu’il va faire, il va donc utiliser son RPD qui est la machine B/R2, puis B va décider de faire sortir le paquet par ens33, ça a été la même chose que l’envoi du paquet mais dans le sens inverse de C à A.
+
+### 2) Faire 2 captures de trame : une sur R1 et une sur R2
+
+Vous pouvez aller voir les 2 captures de trame, ce sont les 2 .pcapng directement consultables avec Wireshark.
+
+Mais aussi voici les captures :
+
+La capture sur ens33 :
+
+![Capture sur ens33 (R1)](23-capture-ens33.png)
+
+La capture sur ens36 :
+
+![Capture sur ens36 (R2)](24-capture-ens36.png)
+
+### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
+
+Je choisis le paquet 8 sur R1 et on va voir son équivalent sur R2 et on y répondra à la question.
+
+![Trame 8 sur R1](25-trame-8-r1.png)
+
+Comme on peut le voir sur cette capture, la trame 8 est un Echo request de 192.168.10.1 (A) vers 192.168.20.3 (C) avec id=0x000c, seq =2/512 et TTL=64
+
+![Paquet équivalent sur R2](26-trame-equivalente-r2.png)
+
+Ici on peut voir que ce paquet de notre trame de R2 correspond au même paquet identifié juste avant, comment on le sait ? Car ce paquet là est un request comme celui de R1, mais aussi que son numéro de séquence est seq=2/512, c’est grâce à celui-ci qu’on l’identifie car le numéro de paquet s’incrémente entre chaque paquet envoyé, donc ce paquet là est bien le paquet identifié juste avant. On peut voir aussi que l’identifiant est le même, l’identifiant et le numéro de séquence sont générés par A et ne sont jamais modifiés par un routeur, donc 2 paquets ayant les mêmes sont forcément les mêmes. Comme on peut le voir, le TTL passe de 64 à 63, c’est ce qui confirme que c’est un paquet après son passage par B.
+
+Donc ce paquet là sur R2 est bien celui qui réalise la fin du trajet de A à C car :
+
+![Adresse MAC de destination dans Wireshark](27-mac-destination-wireshark.png)
+
+Comme on peut le voir sur Wireshark, sur ce paquet là, sa destination a pour adresse MAC (00:0c:29:82:4d:6c)
+
+![ip a sur la machine C](28-ip-a-machine-c.png)
+
+Et quand on fait ip a sur C, on peut voir ici que cette adresse MAC correspond à la machine C. Les 2 sont identiques donc le paquet est adressé directement à C et non à une autre machine.
+
+Une adresse MAC de destination désigne toujours la prochaine machine qui doit recevoir ce paquet, sur R1 c’était celle de B donc le paquet devrait encore être relayé, ici c’est celle de C, il n’y a donc pas d’intermédiaire.
+
+### 4) Etudier et expliquer les modifications (ou non) des champs TTL, IP SRC et DST, MAC SRC et DST
+
+TTL : il diminue de 1, comme dit juste avant, à chaque routeur traversé il sera décrémenté. Cela permet de prouver qu’exactement un routeur a été traversé par un paquet, ce routeur là est bien la machine B. TTL a pour but d’être une sécurité : si un paquet tournait en boucle entre des routeurs mal configurés, le TTL finirait par atteindre 0 et le paquet serait détruit ; sans cela, le paquet circulerait sans jamais s’arrêter
+
+IP SRC et DST : Les IP ne changent pas à l’envoi du paquet et cela est logique, une IP a été affectée à une machine et restera la même car ça l’identifie en quelque sorte. C’est 2 IP à 2 buts : l’IP SRC a pour but de désigner l’IP d’origine et l’IP DST a pour but de désigner l’IP destinataire final, si B les modifiait, C ne saurait plus à qui répondre, c’est pour cela qu’elles ne sont pas modifiées car sans cela on ne pourrait pas faire acheminer ce paquet de bout en bout à travers plusieurs routeurs.
+
+MAC SRC et DST : Oui, elles vont changer car une adresse MAC est une adresse spécifique à sa carte réseau et ne changera jamais. Si on envoie un paquet de A à B/ens33, l’adresse MAC SRC sera celle de A car c’est d’où le paquet est envoyé, et DST celle de B/ens33 car c’est elle qui est la destination de ce paquet. Mais dans le cas où on envoie un paquet de B/ens36 à C, alors là, l’adresse MAC SRC sera celle de B/ens36 et celle de DST sera celle de C. C’est pour cela que les adresses MAC SRC et DST vont varier en fonction de la machine vers laquelle on envoie un paquet et de son destinataire. Car une adresse MAC ne fonctionne que sur un seul réseau, A ne peut pas connaître le MAC de C car C n’est pas sur son réseau, elle envoie donc à son voisin B qui va fabriquer une nouvelle trame avec des adresses de R2 pour l’envoyer à C qui est lui sur R2.
