@@ -231,3 +231,17 @@ TTL : il diminue de 1, comme dit juste avant, à chaque routeur traversé il ser
 IP SRC et DST : Les IP ne changent pas à l’envoi du paquet et cela est logique, une IP a été affectée à une machine et restera la même car ça l’identifie en quelque sorte. C’est 2 IP à 2 buts : l’IP SRC a pour but de désigner l’IP d’origine et l’IP DST a pour but de désigner l’IP destinataire final, si B les modifiait, C ne saurait plus à qui répondre, c’est pour cela qu’elles ne sont pas modifiées car sans cela on ne pourrait pas faire acheminer ce paquet de bout en bout à travers plusieurs routeurs.
 
 MAC SRC et DST : Oui, elles vont changer car une adresse MAC est une adresse spécifique à sa carte réseau et ne changera jamais. Si on envoie un paquet de A à B/ens33, l’adresse MAC SRC sera celle de A car c’est d’où le paquet est envoyé, et DST celle de B/ens33 car c’est elle qui est la destination de ce paquet. Mais dans le cas où on envoie un paquet de B/ens36 à C, alors là, l’adresse MAC SRC sera celle de B/ens36 et celle de DST sera celle de C. C’est pour cela que les adresses MAC SRC et DST vont varier en fonction de la machine vers laquelle on envoie un paquet et de son destinataire. Car une adresse MAC ne fonctionne que sur un seul réseau, A ne peut pas connaître le MAC de C car C n’est pas sur son réseau, elle envoie donc à son voisin B qui va fabriquer une nouvelle trame avec des adresses de R2 pour l’envoyer à C qui est lui sur R2.
+
+### Nous allons donc étudier le trajet d’un paquet retour de C à A :
+
+Nous allons suivre le retour donc un paquet echo reply, on va prendre celui qu’on vien d’étudier donc le seq=2/512 ce qui correspond a la trame 9.
+
+D’apres mes captures voici les valeurs :
+
+|  | Sur R2 (Départ) | Sur R1 (arrivée) |
+|---|---|---|
+| IP SRC | 192.168.20.3 (C) | 192.168.20.3 (C) |
+| IP DST | 192.168.10.1 (A) | 192.168.10.1 (A) |
+| TTL | 64 | 63 |
+| MAC SRC | Celle de C | Celle de B/ens33 |
+| MAC DST | Celle de B/ens36 | Celle de A |
