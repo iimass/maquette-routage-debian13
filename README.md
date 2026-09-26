@@ -234,7 +234,7 @@ MAC SRC et DST : Oui, elles vont changer car une adresse MAC est une adresse sp�
 
 ### Nous allons donc étudier le trajet d’un paquet retour de C à A :
 
-Nous allons suivre le retour donc un paquet echo reply, on va prendre celui qu’on vien d’étudier donc le seq=2/512 ce qui correspond a la trame 9.
+Nous allons suivre le retour donc un paquet echo reply (ICMP Echo Reponse), on va prendre celui qu’on vien d’étudier donc le seq=2/512 ce qui correspond a la trame 9.
 
 D’apres mes captures voici les valeurs :
 
@@ -245,3 +245,93 @@ D’apres mes captures voici les valeurs :
 | TTL | 64 | 63 |
 | MAC SRC | Celle de C | Celle de B/ens33 |
 | MAC DST | Celle de B/ens36 | Celle de A |
+
+### 1) Décisions de routage déterminant ce trajet à chaque étape
+
+Maintenant on va faire le echo reponse c’est la même chose que le request mais dans le sens inverse de notre destination a notre machine A.
+
+C veut joindre une reponse a A elle va regarder sa table de routage et voit que l’adresse destination de la machine A n’ai pas sur sont réseau ducoup C va passer par sa RPD (la machine B) .
+
+### 2) Faire 2 captures de trame : une sur R1 et une sur R2
+
+![Capture 27](images/27.png)
+
+### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
+
+Je choisi la trame 9 un echo eply et ca correspond bien a la reponse du paquet envoyer qu’on vener juste détudier car on peut voir que sont seq =2/512 comme l’echo request étudier juste au dessus.
+
+Sur R1 :
+
+![Capture 28](images/28.png)
+
+Sont équivalent sur R2 :
+
+![Capture 29](images/29.png)
+
+Comme on peut le voir sur cette capture, la trame 9 est un Echo reply de 192.168.20.3 (C) vers 192.168.10.1 (A) avec **id=0x000c**, **seq =2/512** et **TTL=64**
+
+## Trajet d’un paquet “ssh” de A à C: IP, Mac et TTL
+
+On va s’intéresser au trajet d’un paquet “ssh“ de A à C. ssh est un protocale qui permet de ce connectée une autre machines depuis ca propre machines, ssh s’appuie sur TCP avec SYN, SYN/ACK, ACK, TCP garantire la transmission de données soit complète que toute données soit transmis parfaitement et dans l’ordre envoyer et ssh de sont cotée chiffre les échanges.
+
+### Nous allons donc étudier le trajet d’un paquet ssh de A à C :
+
+### 1) Décisions de routage déterminant ce trajet à chaque étape
+
+Les décision de routage est exactement les meme que pour les ping.
+
+A veut joindre la machine C donc qui a pour destination 192.168.20.3. Elle regarde sa table de routage et remarque que cette adress n’ai pas une machine de sont adresse réseau elle va donc envoyer le paquet a sont RPD qui est B/R1.
+
+B va donc recevoir ce paquet venant de A et ce paquet a pour destination 192.168.20.3 et voit que l’adresse de destination n’est pas sur le meme réseau que lui et comme **ip_forward=1** alors elle consulte sa table et voit que cette destination est accessible a partir de ens36 comme ens36 est sur le meme réseau que celle de notre destination, elle va donc faire sortir ce paquet par ens36 en C.
+
+Les decision sont identique car parce que la transmission de paquet un routeur regarde uniquement l’ip de destination.
+
+### 2) Faire 2 captures de trame : une sur R1 et une sur R2
+
+Vous pouvez allez voir les 2 captures de trame sont les 2 .pcapng directement consultables avec Wireshark.
+
+Mais aussi voici les captures :
+
+### La capture sur ens33 :
+
+![Capture 30](images/30.png)
+
+### La capture sur ens36 :
+
+![Capture 31](images/31.png)
+
+### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
+
+Voici le paquet choisi :
+
+![Capture 32](images/32.png)
+
+Ce paquet est celui de la trame 5, c’est le SYN, le tout premier paquet de la connexion ssh, qui par de A vers C
+
+![Capture 33](images/33.png)
+
+**Src port : 33708, Dst Port : 22**, **seq 0** et **TTL 64**
+
+Et voici sont équivalent sur ens36 :
+
+![Capture 34](images/34.png)
+
+![Capture 35](images/35.png)
+
+Ont peut voir qu’il on bien les même port le même seq et aussi que maintenant le TTL est a 63. Donc c’est bien le meme paquet juste après que B est regarder sa table de routage et a décrémenter TTL
+
+### Pourquoi c’est bien la fin de trajet :
+
+Car sur R2 on peut voir que l’adresse MAC de destination 00:0c:29:82:4d:6c qui est celle de C. Une adresse MAC de destination désigne toujours la prochaine machine qui doit recevoir le paquet et ici on voit que l’adress MAC de destination est C donc cela signifie que le paquet a pour destination directement C et que c’est bien la destination final.
+
+### 4) Etudier et expliquer les modifications (ou non) des champs TTL, IP SRC et DST, MAC SRC et DST
+
+Le comportement de chacune des champs est exactement la meme que celle pour le ping :
+
+IP : elle ne change pas, l’IP SRC désigne l’ip de départ pour notre cas 192.168.10.1 (A) ou le paquet est envoyer vers sont sa destination avec sont IP DST 192.168.20.3 (C).
+
+MAC : Comme on a pue le voir les adresse MAC change bien car l’adresse MAC SRC sur R1 de A à B sera donc celle de A et celle de DST sera celle de B mais tandit que sur R2 sa sera celle de B à C.
+
+TTL : Ici on a bien TTL qui va ce décrémenter car notre routeur B a bien été traversé.
+
+Nous pouvons bien voir que le comportement de transmission de paquet est identique a celle d’un ping. Cela prouve que si un paquet par d’une machine vers une machine destination le routage se fait toujours de la même façon pour tout type de paquet que sa soit des ping ou bien la transmission ssh.
