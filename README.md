@@ -274,23 +274,15 @@ Comme on peut le voir sur ces captures, la trame 9 est un Echo reply de 192.168.
 
 On va s’intéresser au trajet d’un paquet “ssh“ de A à C. ssh est un protocole qui permet de se connecter à une autre machine depuis sa propre machine. ssh s’appuie sur TCP, avec le SYN, SYN/ACK, ACK : TCP garantit que toutes les données sont transmises complètement et dans l’ordre où elles ont été envoyées. Et ssh, de son côté, chiffre les échanges.
 
-Voici comment je fait la connexion ssh a partir de A pour me connecter a la machine C :
+Voici comment je fais la connexion ssh à partir de A pour me connecter à la machine C :
 
-D’abord faudra faire en sort que les permission de ce connecter en temp que root soit bien mise, pour pouvoirs les mettre je vais directement les mettre dans le dossier **sshd_config** et pour y acceder je fait **vi /etc/ssh/sshd_config** et on met les permission :
+Je regarde d’abord si on peut bien se connecter à C en regardant la commande **systemctl status ssh** directement sur C afin de constater qu’il est bien activé.
 
 ![Capture 30](images/30.png)
 
-la on vois qu’on a bien mis PermitRootLogin en yes.
-
-Ensuite on redémarre le service afin que sa fasse effet en fessant : **systemctl restart ssh**
-
-je regarde si on peut bien ce connecter a C en regardant le **systemctl status ssh** directement sur C afin de constater qu’il est bien activer
+Et ensuite sur A on fait **ssh root@192.168.20.3** afin de demander la connexion à C. On nous demande le mot de passe, on le met, et on se retrouve bien dans C. On peut le confirmer en faisant ip a : on voit bien qu’on est sur la machine C.
 
 ![Capture 31](images/31.png)
-
-Et ensuite sur A on fait **ssh root@192.168.20.3** afin de ce demander la connection a C on nous demande le MDP on le met et on sera bien dans C on peut le confirmer en fessant ip a on voit bien qu’on est bien sur la machine C.
-
-![Capture 32](images/32.png)
 
 ### Nous allons donc étudier le trajet d’un paquet ssh de A à C :
 
@@ -312,29 +304,29 @@ Mais aussi voici les captures :
 
 ### La capture sur ens33 :
 
-![Capture 33](images/33.png)
+![Capture 32](images/32.png)
 
 ### La capture sur ens36 :
 
-![Capture 34](images/34.png)
+![Capture 33](images/33.png)
 
 ### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
 
 Voici le paquet choisi :
 
-![Capture 35](images/35.png)
+![Capture 34](images/34.png)
 
 Ce paquet est celui de la trame 5, c’est le SYN, le tout premier paquet de la connexion ssh, qui part de A vers C.
 
-![Capture 36](images/36.png)
+![Capture 35](images/35.png)
 
 **Src port : 33708, Dst Port : 22**, **seq 0** et **TTL 64**
 
 Et voici son équivalent sur ens36 :
 
-![Capture 37](images/37.png)
+![Capture 36](images/36.png)
 
-![Capture 38](images/38.png)
+![Capture 37](images/37.png)
 
 On peut voir qu’ils ont bien les mêmes ports, le même seq, et aussi que maintenant le TTL est à 63. Donc c’est bien le même paquet, juste après que B a regardé sa table de routage et a décrémenté le TTL.
 
