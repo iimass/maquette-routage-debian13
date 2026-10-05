@@ -252,6 +252,8 @@ Maintenant on va faire le echo reply, c’est la même chose que le request mais
 
 C veut envoyer une réponse à A, elle va regarder sa table de routage et voit que l’adresse de destination de la machine A n’est pas sur son réseau, du coup C va passer par son RPD (la machine B).
 
+B recoit le paquet en ens36 et voit que l’adresse de destination n’est pas sur son réseau actuelle comme on a l’autorisation de l’ip_forward, B consulte sa table et vois que R1 est accecible par ens33 et que l’ip destination carrespond a une machine sur R1 et va donc faire sortir le paquet par ens33 vers A.
+
 ### 2) Faire 2 captures de trame : une sur R1 et une sur R2
 
 ![Capture 27](images/27.png)
@@ -266,9 +268,21 @@ Sur R1 :
 
 Son équivalent sur R2 :
 
+Comme on peut le voir sur ces captures, la trame 9 est un Echo reply de 192.168.20.3 (C) vers 192.168.10.1 (A) avec **id=0x000c**, **seq=2/512**, et un **TTL=64** sur R2 au départ de C qui passe à un **TTL=63** sur R1, vu qu’il a traversé le routeur B.
+
 ![Capture 29](images/29.png)
 
-Comme on peut le voir sur ces captures, la trame 9 est un Echo reply de 192.168.20.3 (C) vers 192.168.10.1 (A) avec **id=0x000c**, **seq=2/512**, et un **TTL=64** sur R2 au départ de C qui passe à un **TTL=63** sur R1, vu qu’il a traversé le routeur B.
+Pourquoi c’est bien la fin du trajet : Nous voyons que sur R1 l’adresse MAC de destination est celle de A, une adresse MAC de destination designe toujours la prochaine machine qui recoit le paquet et ici c’est directement A. Le paquet est donc remis a sa destination finale.
+
+### 4) Etudier et expliquer les modifications (ou non) des champs TTL, IP SRC et DST, MAC SRC et DST
+
+Le comportement est le même qu'à l'aller, seul le sens change.
+
+TTL : il diminue de 1, car le paquet a traversé un routeur, la machine B. La valeur de départ est cette fois fixée par C, puisque c'est elle qui fabrique ce nouveau paquet.
+
+IP SRC et DST : elles ne changent pas, mais elles sont inversées par rapport à l'aller, puisqu'il s'agit d'une réponse. L'IP SRC est maintenant celle de C (192.168.20.3) et l'IP DST celle de A (192.168.10.1). Elles restent intactes tout au long du trajet car elles désignent l'origine et le destinataire final.
+
+MAC SRC et DST : elles changent entre les deux réseaux. Sur R2 la trame va de C à B/ens36, sur R1 elle va de B/ens33 à A. C'est le même principe qu'à l'aller : une adresse MAC ne fonctionne que sur un seul réseau, donc C envoie à son voisin B, qui fabrique ensuite une nouvelle trame avec des adresses de R1 pour l'envoyer à A.
 
 ## Trajet d’un paquet “ssh” de A à C : IP, MAC et TTL
 
@@ -276,13 +290,21 @@ On va s’intéresser au trajet d’un paquet “ssh“ de A à C. ssh est un pr
 
 Voici comment je fais la connexion ssh à partir de A pour me connecter à la machine C :
 
-Je regarde d’abord si on peut bien se connecter à C en regardant la commande **systemctl status ssh** directement sur C afin de constater qu’il est bien activé.
+D’abord il faudra faire en sorte que les permissions de se connecter en tant que root soient bien mises, pour pouvoir les mettre je vais directement dans le fichier **sshd_config** et pour y accéder je fais **vi /etc/ssh/sshd_config** et on met les permissions :
 
 ![Capture 30](images/30.png)
 
-Et ensuite sur A on fait **ssh root@192.168.20.3** afin de demander la connexion à C. On nous demande le mot de passe, on le met, et on se retrouve bien dans C. On peut le confirmer en faisant ip a : on voit bien qu’on est sur la machine C.
+Là on voit qu’on a bien mis PermitRootLogin à yes.
+
+Ensuite on redémarre le service afin que ça fasse effet en faisant : **systemctl restart ssh**.
+
+Je regarde si on peut bien se connecter à C en regardant le **systemctl status ssh** directement sur C afin de constater qu’il est bien activé.
 
 ![Capture 31](images/31.png)
+
+Et ensuite sur A on fait **ssh root@192.168.20.3** afin de demander la connexion à C. On nous demande le mot de passe, on le met, et on sera bien dans C. On peut le confirmer en faisant ip a, on voit bien qu’on est bien sur la machine C.
+
+![Capture 32](images/32.png)
 
 ### Nous allons donc étudier le trajet d’un paquet ssh de A à C :
 
@@ -304,29 +326,29 @@ Mais aussi voici les captures :
 
 ### La capture sur ens33 :
 
-![Capture 32](images/32.png)
+![Capture 33](images/33.png)
 
 ### La capture sur ens36 :
 
-![Capture 33](images/33.png)
-
 ### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
-
-Voici le paquet choisi :
 
 ![Capture 34](images/34.png)
 
-Ce paquet est celui de la trame 5, c’est le SYN, le tout premier paquet de la connexion ssh, qui part de A vers C.
+Voici le paquet choisi :
 
 ![Capture 35](images/35.png)
+
+Ce paquet est celui de la trame 5, c’est le SYN, le tout premier paquet de la connexion ssh, qui part de A vers C.
+
+![Capture 36](images/36.png)
 
 **Src port : 33708, Dst Port : 22**, **seq 0** et **TTL 64**
 
 Et voici son équivalent sur ens36 :
 
-![Capture 36](images/36.png)
-
 ![Capture 37](images/37.png)
+
+![Capture 38](images/38.png)
 
 On peut voir qu’ils ont bien les mêmes ports, le même seq, et aussi que maintenant le TTL est à 63. Donc c’est bien le même paquet, juste après que B a regardé sa table de routage et a décrémenté le TTL.
 
