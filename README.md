@@ -236,23 +236,13 @@ MAC SRC et DST : Oui, elles vont changer car une adresse MAC est une adresse sp�
 
 Nous allons suivre le retour donc un paquet echo reply (ICMP Echo Reponse), on va prendre celui qu’on vien d’étudier donc le seq=2/512 ce qui correspond a la trame 9.
 
-D’apres mes captures voici les valeurs :
-
-|  | Sur R2 (Départ) | Sur R1 (arrivée) |
-|---|---|---|
-| IP SRC | 192.168.20.3 (C) | 192.168.20.3 (C) |
-| IP DST | 192.168.10.1 (A) | 192.168.10.1 (A) |
-| TTL | 64 | 63 |
-| MAC SRC | Celle de C | Celle de B/ens33 |
-| MAC DST | Celle de B/ens36 | Celle de A |
-
 ### 1) Décisions de routage déterminant ce trajet à chaque étape
 
 Maintenant on va faire le echo reply, c’est la même chose que le request mais dans le sens inverse, de notre destination vers notre machine A.
 
 C veut envoyer une réponse à A, elle va regarder sa table de routage et voit que l’adresse de destination de la machine A n’est pas sur son réseau, du coup C va passer par son RPD (la machine B).
 
-B recoit le paquet en ens36 et voit que l’adresse de destination n’est pas sur son réseau actuelle comme on a l’autorisation de l’ip_forward, B consulte sa table et vois que R1 est accecible par ens33 et que l’ip destination carrespond a une machine sur R1 et va donc faire sortir le paquet par ens33 vers A.
+B reçoit le paquet sur ens36 et voit que l’adresse de destination n’est pas sur son réseau actuel, comme on a l’autorisation de l’ip_forward, B consulte sa table et voit que R1 est accessible par ens33 et que l’ip destination correspond à une machine sur R1, et va donc faire sortir le paquet par ens33 vers A.
 
 ### 2) Faire 2 captures de trame : une sur R1 et une sur R2
 
@@ -272,17 +262,17 @@ Comme on peut le voir sur ces captures, la trame 9 est un Echo reply de 192.168.
 
 ![Capture 29](images/29.png)
 
-Pourquoi c’est bien la fin du trajet : Nous voyons que sur R1 l’adresse MAC de destination est celle de A, une adresse MAC de destination designe toujours la prochaine machine qui recoit le paquet et ici c’est directement A. Le paquet est donc remis a sa destination finale.
+Pourquoi c’est bien la fin du trajet : Nous voyons que sur R1 l’adresse MAC de destination est celle de A. Une adresse MAC de destination désigne toujours la prochaine machine qui reçoit le paquet, et ici c’est directement A. Le paquet est donc remis à sa destination finale.
 
 ### 4) Etudier et expliquer les modifications (ou non) des champs TTL, IP SRC et DST, MAC SRC et DST
 
-Le comportement est le même qu'à l'aller, seul le sens change.
+Le comportement est le même qu’à l’aller, seul le sens change.
 
-TTL : il diminue de 1, car le paquet a traversé un routeur, la machine B. La valeur de départ est cette fois fixée par C, puisque c'est elle qui fabrique ce nouveau paquet.
+TTL : il diminue de 1, car le paquet a traversé un routeur, la machine B. La valeur de départ est cette fois fixée par C, puisque c’est elle qui fabrique ce nouveau paquet.
 
-IP SRC et DST : elles ne changent pas, mais elles sont inversées par rapport à l'aller, puisqu'il s'agit d'une réponse. L'IP SRC est maintenant celle de C (192.168.20.3) et l'IP DST celle de A (192.168.10.1). Elles restent intactes tout au long du trajet car elles désignent l'origine et le destinataire final.
+IP SRC et DST : elles ne changent pas, mais elles sont inversées par rapport à l’aller, puisqu’il s’agit d’une réponse. L’IP SRC est maintenant celle de C (192.168.20.3) et l’IP DST celle de A (192.168.10.1). Elles restent intactes tout au long du trajet car elles désignent l’origine et le destinataire final.
 
-MAC SRC et DST : elles changent entre les deux réseaux. Sur R2 la trame va de C à B/ens36, sur R1 elle va de B/ens33 à A. C'est le même principe qu'à l'aller : une adresse MAC ne fonctionne que sur un seul réseau, donc C envoie à son voisin B, qui fabrique ensuite une nouvelle trame avec des adresses de R1 pour l'envoyer à A.
+MAC SRC et DST : elles changent entre les deux réseaux. Sur R2 la trame va de C à B/ens36, sur R1 elle va de B/ens33 à A. C’est le même principe qu’à l’aller : une adresse MAC ne fonctionne que sur un seul réseau, donc C envoie à son voisin B, qui fabrique ensuite une nouvelle trame avec des adresses de R1 pour l’envoyer à A.
 
 ## Trajet d’un paquet “ssh” de A à C : IP, MAC et TTL
 
@@ -330,9 +320,9 @@ Mais aussi voici les captures :
 
 ### La capture sur ens36 :
 
-### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
-
 ![Capture 34](images/34.png)
+
+### 3) Repérer un paquet sur R1 et son équivalent sur R2 (expliquez pourquoi le paquet que vous choisissez sur R2 est celui qui réalise la fin du trajet de A à C)
 
 Voici le paquet choisi :
 
